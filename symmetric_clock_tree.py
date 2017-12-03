@@ -9,6 +9,7 @@ class PlotAttrs:
         # matplot markers: https://matplotlib.org/api/markers_api.html
         self.centroid_attrs = ['rv', 'bv', 'gv', 'kv', 'mv']
         self.sink_attrs = ['ro', 'bo', 'go', 'ko', 'mo']
+        self.line_colors = ['r', 'b', 'g', 'k', 'm']
 
 class Sink:
     def __init__(self, x, y):
@@ -99,6 +100,7 @@ class SymmetricClockTree:
 
     def addSinksToGroups(self, group_ids):
         for i, group_id in enumerate(group_ids):
+            print(i)
             self.sinkGroups[group_id]["sinks"].append(self.sinks[i])
 
     def findAllFactors(self):
@@ -118,15 +120,19 @@ class SymmetricClockTree:
         plotAttrs = PlotAttrs()
         centroid_attrs = plotAttrs.centroid_attrs
         sink_attrs = plotAttrs.sink_attrs
+        line_colors = plotAttrs.line_colors
 
         for group_id in self.sinkGroups:
-            # plot centroid
             centroid_location = self.sinkGroups[group_id]["centroid_location"]
 
+            # plot centroid (x, y, attributes)
             plt.plot(centroid_location[0], centroid_location[1], centroid_attrs[group_id])
-            # plot sinks
+            # plot sinks (x, y, attributes)
             for sink in self.sinkGroups[group_id]["sinks"]:
                 plt.plot(sink.location[0], sink.location[1], sink_attrs[group_id])
+
+                # connect sink to their centroid. ([x_start, x_end], [y_start, y_end], attributes)
+                plt.plot([sink.location[0], centroid_location[0]], [sink.location[1], centroid_location[1]], color=line_colors[group_id])
 
     def showPlot(self):
         plt.show()
