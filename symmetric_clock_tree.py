@@ -3,6 +3,7 @@ from sklearn.cluster import KMeans
 import numpy as np
 import matplotlib.pyplot as plt
 from pprint import pprint
+import math
 
 # Used to represent the Sinks on our board
 class Sink:
@@ -52,6 +53,7 @@ class SymmetricClockTree:
         self.maxXCoordinate = 2500
         self.minYCoordinate = 0
         self.maxYCoordinate = 2500
+        self.standardizedWireLength = 0
 
     # Helper method for generating random sink locations.
     def generateRandomSinkLocations(self):
@@ -84,7 +86,7 @@ class SymmetricClockTree:
         # Get all sinks locations
         sinks = self.getSinkLocations()
         # Perform KMeans clustering and identify cluster centers.
-        kmeans = KMeans(n_clusters=4).fit(sinks)
+        kmeans = KMeans(n_clusters=3).fit(sinks)
         centroids = kmeans.cluster_centers_
 
         # For each identified cluster center:
@@ -142,6 +144,7 @@ class SymmetricClockTree:
 
     # Sets the axes for our plot.
     def setAxis(self):
+        # ([minX, maxX, minY, maxY])
         plt.axis([self.minXCoordinate, self.maxXCoordinate, self.minYCoordinate, self.maxYCoordinate])
 
     # Plots each of our sink groups
@@ -156,19 +159,43 @@ class SymmetricClockTree:
             centroid_location = self.sinkGroups[group_id]["centroid_location"]
 
             # plot centroid (x, y, attributes)
-            plt.plot(centroid_location[0], centroid_location[1], centroid_attrs[group_id])
+            plt.plot(
+                centroid_location[0],
+                centroid_location[1],
+                centroid_attrs[group_id]
+            )
+
             # plot sinks (x, y, attributes)
             for sink in self.sinkGroups[group_id]["sinks"]:
-                plt.plot(sink.location[0], sink.location[1], sink_attrs[group_id])
+                plt.plot(
+                    sink.location[0],
+                    sink.location[1],
+                    sink_attrs[group_id]
+                )
+
+                # calculate wire length between sink and centroid
+                # sqrt((x2 - x1)^2 + (y2 - y1)^2)
+                wire_length = math.sqrt(
+                    ((centroid_location[0] - sink.location[0]) ** 2) +
+                    (centroid_location[1] - sink.location[1]) ** 2)
+
+                # set max distance if applicable
+                if (wire_length > self.standardizedWireLength):
+                    self.standardizedWireLength = wire_length
 
                 # connect sink to their centroid. ([x_start, x_end], [y_start, y_end], attributes)
-                plt.plot([sink.location[0], centroid_location[0]], [sink.location[1], centroid_location[1]], color=line_colors[group_id])
+                # plt.plot(
+                #     [sink.location[0], centroid_location[0]],
+                #     [sink.location[1], centroid_location[1]],
+                #     color=line_colors[group_id]
+                # )
+    
     # Shows our plot
     def showPlot(self):
         plt.show()
 
 
-tree = SymmetricClockTree(10)
+tree = SymmetricClockTree(49)
 tree.generateRandomSinkLocations()
 tree.groupSinks()
 tree.makePlot()
