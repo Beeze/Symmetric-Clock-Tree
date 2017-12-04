@@ -126,7 +126,24 @@ class SymmetricClockTree:
     # Adds each sink to their designated SinkGroup by group_id
     def addSinksToGroups(self, group_ids):
         for i, group_id in enumerate(group_ids):
-            self.sinkGroups[group_id]["sinks"].append(self.sinks[i])
+            sink = self.sinks[i]
+            self.sinkGroups[group_id]["sinks"].append(sink)
+            self.maybeUpdateWireLength(group_id, sink)
+
+    # Checks to see if we have a new longest wire length
+    # If we do, we'll update the distance value
+    def maybeUpdateWireLength(self, group_id, sink):
+        centroid_location = self.sinkGroups[group_id]["centroid_location"]
+
+        # calculate wire length between sink and centroid
+        # sqrt((x2 - x1)^2 + (y2 - y1)^2)
+        wire_length = math.sqrt(
+            ((centroid_location[0] - sink.location[0]) ** 2) +
+            (centroid_location[1] - sink.location[1]) ** 2)
+
+        # set max distance if applicable
+        if (wire_length > self.standardizedWireLength):
+            self.standardizedWireLength = wire_length
 
     # Helper method which finds all factors of a number.
     # This will be used to determine the number of sinks grouped per level in the tree.
@@ -173,23 +190,40 @@ class SymmetricClockTree:
                     sink_attrs[group_id]
                 )
 
-                # calculate wire length between sink and centroid
-                # sqrt((x2 - x1)^2 + (y2 - y1)^2)
-                wire_length = math.sqrt(
-                    ((centroid_location[0] - sink.location[0]) ** 2) +
-                    (centroid_location[1] - sink.location[1]) ** 2)
+                self.drawConnection(centroid_location, sink.location)
 
-                # set max distance if applicable
-                if (wire_length > self.standardizedWireLength):
-                    self.standardizedWireLength = wire_length
+    # draws the line that connects a sink to a centroid
+    # takes into account the required (longest) wire length when
+    # devising a path
+    def drawConnection(self, centroid_location, sink_location):
 
-                # connect sink to their centroid. ([x_start, x_end], [y_start, y_end], attributes)
-                # plt.plot(
-                #     [sink.location[0], centroid_location[0]],
-                #     [sink.location[1], centroid_location[1]],
-                #     color=line_colors[group_id]
-                # )
-    
+        # next, we're going to snake the wire from the sink to the centroid,
+        # we decide which horizontal and vertical direction to go
+        # based on whichever side we have more clearance on.
+        sink_relative_centroid_direction = getSinkRelativeCentroidDirection(centroid_location, sink_location)
+        wire_length = self.standardizedWireLength
+        pen_location = sink.location
+        drawSnakeLine(pen_location, wire_length, sink_relative_centroid_direction)
+        # connect sink to their centroid. ([x_start, x_end], [y_start, y_end], attributes)
+        # plt.plot(
+        #     [sink.location[0], centroid_location[0]],
+        #     [sink.location[1], centroid_location[1]],
+        #     color=line_colors[group_id]
+        # )
+
+    def getSinkRelativeCentroidDirection(self, c_l, s_l):
+        if c_l[0] > s_l[0] and c_l[1] > s_l[1]
+            return 'NE'
+        elif c_l[0] > s_l[0] and c_l[1] < s_l[1]
+            return 'NW'
+        elif c_l[0] < s_l[0] and c_l[1] > s_l[1]
+            return 'SE'
+        else
+            return 'SW'
+
+    def drawSnakeLine(self, starting_location, distance_to_travel, direction):
+
+
     # Shows our plot
     def showPlot(self):
         plt.show()
