@@ -190,39 +190,46 @@ class SymmetricClockTree:
                     sink_attrs[group_id]
                 )
 
-                self.drawConnection(centroid_location, sink.location)
+                self.drawConnection(centroid_location, sink.location, group_id)
 
     # draws the line that connects a sink to a centroid
     # takes into account the required (longest) wire length when
     # devising a path
-    def drawConnection(self, centroid_location, sink_location):
+    # wip
+    def drawConnection(self, centroid_location, sink_location, group_id):
 
         # next, we're going to snake the wire from the sink to the centroid,
         # we decide which horizontal and vertical direction to go
         # based on whichever side we have more clearance on.
-        sink_relative_centroid_direction = getSinkRelativeCentroidDirection(centroid_location, sink_location)
-        wire_length = self.standardizedWireLength
-        pen_location = sink.location
-        drawSnakeLine(pen_location, wire_length, sink_relative_centroid_direction)
+        # sink_relative_centroid_direction = getSinkRelativeCentroidDirection(centroid_location, sink_location)
+        # wire_length = self.standardizedWireLength
+        # pen_location = sink.location
         # connect sink to their centroid. ([x_start, x_end], [y_start, y_end], attributes)
-        # plt.plot(
-        #     [sink.location[0], centroid_location[0]],
-        #     [sink.location[1], centroid_location[1]],
-        #     color=line_colors[group_id]
-        # )
+
+        plotAttrs = PlotAttrs()
+        line_colors = plotAttrs.line_colors
+
+        plt.plot(
+            [sink_location[0], centroid_location[0]],
+            [sink_location[1], centroid_location[1]],
+            color=line_colors[group_id]
+        ) 
+        # drawSnakeLine(pen_location, wire_length, sink_relative_centroid_direction)
+
 
     def getSinkRelativeCentroidDirection(self, c_l, s_l):
-        if c_l[0] > s_l[0] and c_l[1] > s_l[1]
-            return 'NE'
-        elif c_l[0] > s_l[0] and c_l[1] < s_l[1]
-            return 'NW'
-        elif c_l[0] < s_l[0] and c_l[1] > s_l[1]
-            return 'SE'
-        else
-            return 'SW'
+        pass
+        # if c_l[0] > s_l[0] and c_l[1] > s_l[1]
+        #     return 'NE'
+        # elif c_l[0] > s_l[0] and c_l[1] < s_l[1]
+        #     return 'NW'
+        # elif c_l[0] < s_l[0] and c_l[1] > s_l[1]
+        #     return 'SE'
+        # else
+        #     return 'SW'
 
     def drawSnakeLine(self, starting_location, distance_to_travel, direction):
-
+        pass
 
     # Shows our plot
     def showPlot(self):
