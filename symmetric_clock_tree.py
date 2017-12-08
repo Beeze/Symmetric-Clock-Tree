@@ -4,7 +4,6 @@ from sklearn.metrics import silhouette_samples, silhouette_score
 import numpy as np
 import matplotlib
 from matplotlib import pyplot as plt
-from pprint import pprint
 import math
 from itertools import chain
 import statistics
@@ -29,21 +28,16 @@ class Centroid:
     def __init__(self, x, y):
         self.location = [x, y]
 
-    # Number of sinks is determined by which level of the tree we're on.
-    # Since we're only operating with one level for now, this isn't used.
-    def set_number_of_sinks(self, n):
-        self.num_sinks = n
-
 # Represents the traits of our plot.
 # Each element in the arrays correspond to a SinkGroup.
-class PlotAttrs:
+class PlotAttributes:
     def __init__(self, n):
         # matplot markers: https://matplotlib.org/api/markers_api.html
         self.references = n
         self.colorList = self.generateColorList()
-        self.centroid_attrs = self.generateCentroidAttrs()
-        self.sink_attrs = self.generateSinkAttrs()
-        self.line_attrs = self.generateLineAttrs()
+        self.CentroidAttributes = self.generateCentroidAttributes()
+        self.SinkAttributes = self.generateSinkAttributes()
+        self.LineAttributes = self.generateLineAttributes()
 
     def generateColorList(self):
         colors = []
@@ -58,16 +52,16 @@ class PlotAttrs:
 
         return colors
 
-    def generateCentroidAttrs(self):
+    def generateCentroidAttributes(self):
         colors = self.colorList
         attrs = []
 
         for color in colors:
-            attrs.append( {"color": "{}".format(color), "marker": "d"})
+            attrs.append( {"color": "{}".format(color), "marker": "p"})
 
         return attrs
 
-    def generateSinkAttrs(self):
+    def generateSinkAttributes(self):
         colors = self.colorList
         attrs = []
 
@@ -76,7 +70,7 @@ class PlotAttrs:
 
         return attrs
 
-    def generateLineAttrs(self):
+    def generateLineAttributes(self):
         colors = self.colorList
         attrs = []
 
@@ -85,14 +79,14 @@ class PlotAttrs:
 
         return attrs
 
-    def getCentroidAttrs(self, id):
-        return self.centroid_attrs[id]
+    def getCentroidAttributes(self, id):
+        return self.CentroidAttributes[id]
 
-    def getSinkAttrs(self, id):
-        return self.sink_attrs[id]
+    def getSinkAttributes(self, id):
+        return self.SinkAttributes[id]
 
-    def getLineAttrs(self, id):
-        return self.line_attrs[id]
+    def getLineAttributes(self, id):
+        return self.LineAttributes[id]
 
 
 # This class represents our SymmetricClockTree, and holds the majority of our logic.
@@ -123,15 +117,38 @@ class SymmetricClockTree:
     def resetDirectionTravel(self):
         self.directionTraveled = { "up": False, "down": False, "left": False, "right": False }
 
-    # getter method for get
+    # getter method for directionTraveledexa
     def getDirectionTraveled(self):
         return self.directionTraveled
+
+    # method that allows you to input a list of sink locations.
+    # expects list[[x, y]]
+    def addSinksByLocation(self, sink_locations):
+        self.minXCoordinate = 0
+        self.maxXCoordinate = 0
+        self.minYCoordinate = 0
+        self.maxYCoordinate = 0
+
+        for location in sink_locations:
+            self.sinks.append(Sink(location[0], location[1]))
+
+            # update horizontal plot constraints
+            if location[0] < minXCoordinate:
+                minXCoordinate = location[0]
+            elif location[0] > maxXCoordinate:
+                maxXCoordinate = location[0]
+
+            # update vertical plot constraints
+            if location[1] < minYCoordinate:
+                minYCoordinate = location[1]
+            elif location[1] > maxYCoordinate:
+                maxYCoordinate = location[1]
 
     # Helper method for generating random sink locations.
     def generateRandomSinkLocations(self):
         radius = 1000
-        rangeX = (self.maxXCoordinate/4, (3*self.maxXCoordinate/4))
-        rangeY = (self.maxYCoordinate/4, (3*self.maxYCoordinate/4))
+        rangeX = (self.maxXCoordinate/5, (9*self.maxXCoordinate/10))
+        rangeY = (self.maxYCoordinate/4, (9*self.maxYCoordinate/10))
         qty = self.num_sinks  # or however many points you want
 
         # Generate a set of all points within 200 of the origin, to be used as offsets later
@@ -175,6 +192,7 @@ class SymmetricClockTree:
         # Once we've made a SinkGroup for each cluster center
         # We'll use the list of groupings, and add each Sink to their designated group.
         self.addSinksToGroups(kmeans.labels_)
+        print "required wire length:", self.standardizedWireLength
 
     def determineNumberOfClusters(self):
         range_n_clusters = self.findAllFactors()
@@ -192,19 +210,18 @@ class SymmetricClockTree:
             # clusters
 
             silhouette_avg = silhouette_score(sink_locations, cluster_labels)
-            print("For n_clusters =", n_clusters,
-              "The average silhouette_score is :", silhouette_avg)
 
             scores[n_clusters] = silhouette_avg
 
         # Get cluster size that's closest to the median of all the silhouette average.
         averages = list(scores.values())
-        median = statistics.median(averages)
-        closest_value_to_median = min(averages, key=lambda x:abs(x-median))
-
+        # median = statistics.median(averages)
+        # closest_value_to_median = max(averages, key=lambda x:abs(x-median))
+        max_val = max(averages)
         for size, avg in scores.items():
-            if avg == closest_value_to_median:
-                print "optimal size:", size
+            if avg == max_val:
+                print "number of sinks:", self.num_sinks
+                print "optimal cluster size:", size
                 return size
 
     # Helper method which finds all factors of a number.
@@ -267,7 +284,7 @@ class SymmetricClockTree:
     # Sets the axes for our plot.
     def setAxis(self):
         # ([minX, maxX, minY, maxY])
-        plt.axis([self.minXCoordinate, (self.maxXCoordinate + self.maxXCoordinate/5), self.minYCoordinate, (self.maxYCoordinate + self.maxXCoordinate/5) ])
+        plt.axis([self.minXCoordinate, (6*self.maxXCoordinate/5), self.minYCoordinate, (6*self.maxXCoordinate/5) ])
 
     # Shows our plot
     def showPlot(self):
@@ -276,18 +293,16 @@ class SymmetricClockTree:
     # Plots each of our sink groups
     def plotSinkGroups(self):
         # Get all our plots attributes
-        plotAttrs = PlotAttrs(self.sinkGroups)
+        plot_attributes = PlotAttributes(self.sinkGroups)
 
         for group_id in self.sinkGroups:
             centroid_location = self.sinkGroups[group_id]["centroid_location"]
-
-            print(plotAttrs.getCentroidAttrs(group_id)["marker"], plotAttrs.getCentroidAttrs(group_id)["color"])
             # plot centroid (x, y, attributes)
             plt.plot(
                 centroid_location[0],
                 centroid_location[1],
-                color=plotAttrs.getCentroidAttrs(group_id)["color"],
-                marker=plotAttrs.getCentroidAttrs(group_id)["marker"]
+                color=plot_attributes.getCentroidAttributes(group_id)["color"],
+                marker=plot_attributes.getCentroidAttributes(group_id)["marker"]
 
             )
 
@@ -296,8 +311,8 @@ class SymmetricClockTree:
                 plt.plot(
                     sink.location[0],
                     sink.location[1],
-                    color=plotAttrs.getSinkAttrs(group_id)["color"],
-                    marker=plotAttrs.getSinkAttrs(group_id)["marker"]
+                    color=plot_attributes.getSinkAttributes(group_id)["color"],
+                    marker=plot_attributes.getSinkAttributes(group_id)["marker"]
                 )
 
                 self.drawConnection(sink.location, centroid_location, group_id)
@@ -323,10 +338,10 @@ class SymmetricClockTree:
     def drawSnakeLine(self, start, goal, goal_wire_length, group):
 
         bounding_thresholds = {
-            "up": self.maxXCoordinate,
             "down": self.minXCoordinate,
-            "left": self.minYCoordinate,
-            "right": self.maxYCoordinate
+            "up": 3*self.maxYCoordinate/2,
+            "left": self.minXCoordinate,
+            "right": 3*self.maxXCoordinate/2
         }
 
         pen = start[:]
@@ -417,13 +432,12 @@ class SymmetricClockTree:
 
     # Helper method to draw a line between two points
     def drawLineBetweenTwoPoints(self, start, goal, group):
-        plotAttrs = PlotAttrs(self.num_sinks)
-        line_attrs = plotAttrs.line_attrs
+        plot_attributes = PlotAttributes(self.num_sinks)
 
         plt.plot(
             [start[0], goal[0]],
             [start[1], goal[1]],
-            color=plotAttrs.getLineAttrs(group)["color"]
+            color=plot_attributes.getLineAttributes(group)["color"]
         )
 
     # Helper method which calculates current location relative to centroid
@@ -470,7 +484,13 @@ class SymmetricClockTree:
                     return getNextDirectionToTravel(start, goal, True)
 
 
+# Initialize a symmetric clock tree, with n sinks.
 tree = SymmetricClockTree(50)
-tree.generateRandomSinkLocations()
+
+# Uncomment the line below to input custom data
+# Method expects locations to be a list of x, y coordinates: [[x,y], [x,y],...]
+# tree.addSinksByLocation(location)
+
+tree.generateRandomSinkLocations() # Comment out if passing custom data.
 tree.groupSinks()
 tree.makePlot()
