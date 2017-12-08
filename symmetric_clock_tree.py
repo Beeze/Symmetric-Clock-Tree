@@ -1,9 +1,13 @@
 import random
 from sklearn.cluster import KMeans
+from sklearn.metrics import silhouette_samples, silhouette_score
 import numpy as np
-import matplotlib.pyplot as plt
+import matplotlib
+from matplotlib import pyplot as plt
 from pprint import pprint
 import math
+from itertools import chain
+import statistics
 
 # Used to represent the Sinks on our board
 class Sink:
@@ -29,15 +33,67 @@ class Centroid:
     # Since we're only operating with one level for now, this isn't used.
     def set_number_of_sinks(self, n):
         self.num_sinks = n
-        
+
 # Represents the traits of our plot.
 # Each element in the arrays correspond to a SinkGroup.
 class PlotAttrs:
-    def __init__(self):
+    def __init__(self, n):
         # matplot markers: https://matplotlib.org/api/markers_api.html
-        self.centroid_attrs = ['rv', 'bv', 'gv', 'kv', 'mv']
-        self.sink_attrs = ['ro', 'bo', 'go', 'ko', 'mo']
-        self.line_colors = ['r', 'b', 'g', 'k', 'm']
+        self.references = n
+        self.colorList = self.generateColorList()
+        self.centroid_attrs = self.generateCentroidAttrs()
+        self.sink_attrs = self.generateSinkAttrs()
+        self.line_attrs = self.generateLineAttrs()
+
+    def generateColorList(self):
+        colors = []
+        n = self.references
+        counter = 0
+
+        for name, val in matplotlib.colors.cnames.items():
+            if counter == n:
+                break
+            colors.append(name)
+            counter += 1
+
+        return colors
+
+    def generateCentroidAttrs(self):
+        colors = self.colorList
+        attrs = []
+
+        for color in colors:
+            attrs.append( {"color": "{}".format(color), "marker": "d"})
+
+        return attrs
+
+    def generateSinkAttrs(self):
+        colors = self.colorList
+        attrs = []
+
+        for color in colors:
+            attrs.append({"color": "{}".format(color), "marker": "^"})
+
+        return attrs
+
+    def generateLineAttrs(self):
+        colors = self.colorList
+        attrs = []
+
+        for color in colors:
+            attrs.append({"color": "{}".format(color), "marker": "-"})
+
+        return attrs
+
+    def getCentroidAttrs(self, id):
+        return self.centroid_attrs[id]
+
+    def getSinkAttrs(self, id):
+        return self.sink_attrs[id]
+
+    def getLineAttrs(self, id):
+        return self.line_attrs[id]
+
 
 # This class represents our SymmetricClockTree, and holds the majority of our logic.
 class SymmetricClockTree:
@@ -101,8 +157,10 @@ class SymmetricClockTree:
     def groupSinks(self):
         # Get all sinks locations
         sinks = self.getSinkLocations()
+        # determine best cluster size
+        num_clusters = self.determineNumberOfClusters()
         # Perform KMeans clustering and identify cluster centers.
-        kmeans = KMeans(n_clusters=3).fit(sinks)
+        kmeans = KMeans(n_clusters=num_clusters).fit(sinks)
         centroids = kmeans.cluster_centers_
 
         # For each identified cluster center:
@@ -117,6 +175,47 @@ class SymmetricClockTree:
         # Once we've made a SinkGroup for each cluster center
         # We'll use the list of groupings, and add each Sink to their designated group.
         self.addSinksToGroups(kmeans.labels_)
+
+    def determineNumberOfClusters(self):
+        range_n_clusters = self.findAllFactors()
+        scores = {}
+        sink_locations = self.getSinkLocations()
+
+        for n_clusters in range_n_clusters:
+            # Initalize the clusterer with n_clusters value
+            # and a random generator seed of 10 for reproducibility.
+            clusterer = KMeans(n_clusters=n_clusters, random_state=10)
+            cluster_labels = clusterer.fit_predict(sink_locations)
+
+            # The silhouette_score gives the average value for all the samples.
+            # This gives a perspective into the density and separation of the formed
+            # clusters
+
+            silhouette_avg = silhouette_score(sink_locations, cluster_labels)
+            print("For n_clusters =", n_clusters,
+              "The average silhouette_score is :", silhouette_avg)
+
+            scores[n_clusters] = silhouette_avg
+
+        # Get cluster size that's closest to the median of all the silhouette average.
+        averages = list(scores.values())
+        median = statistics.median(averages)
+        closest_value_to_median = min(averages, key=lambda x:abs(x-median))
+
+        for size, avg in scores.items():
+            if avg == closest_value_to_median:
+                print "optimal size:", size
+                return size
+
+    # Helper method which finds all factors of a number.
+    # This will be used to determine the number of sinks grouped per level in the tree.
+    # Algorithm found here: https://stackoverflow.com/a/6800214/5464998
+    def findAllFactors(self):
+        n = self.num_sinks
+        factors = sorted(set(reduce(list.__add__,
+                ([i, n//i] for i in range(1, int(n**0.5) + 1) if n % i == 0))))
+
+        return factors[1:(len(factors)-1)]
 
     # Returns the location of each of the sinks in our clock tree.
     def getSinkLocations(self):
@@ -159,14 +258,6 @@ class SymmetricClockTree:
         if (wire_length > self.standardizedWireLength):
             self.standardizedWireLength = wire_length
 
-    # Helper method which finds all factors of a number.
-    # This will be used to determine the number of sinks grouped per level in the tree.
-    # Algorithm found here: https://stackoverflow.com/a/6800214/5464998
-    def findAllFactors(self):
-        n = self.num_sinks
-        return sorted(set(reduce(list.__add__,
-                ([i, n//i] for i in range(1, int(n**0.5) + 1) if n % i == 0))))
-
     # Draws the plot of tree.
     def makePlot(self):
         self.setAxis()
@@ -185,19 +276,19 @@ class SymmetricClockTree:
     # Plots each of our sink groups
     def plotSinkGroups(self):
         # Get all our plots attributes
-        plotAttrs = PlotAttrs()
-        centroid_attrs = plotAttrs.centroid_attrs
-        sink_attrs = plotAttrs.sink_attrs
-        line_colors = plotAttrs.line_colors
+        plotAttrs = PlotAttrs(self.sinkGroups)
 
         for group_id in self.sinkGroups:
             centroid_location = self.sinkGroups[group_id]["centroid_location"]
 
+            print(plotAttrs.getCentroidAttrs(group_id)["marker"], plotAttrs.getCentroidAttrs(group_id)["color"])
             # plot centroid (x, y, attributes)
             plt.plot(
                 centroid_location[0],
                 centroid_location[1],
-                centroid_attrs[group_id]
+                color=plotAttrs.getCentroidAttrs(group_id)["color"],
+                marker=plotAttrs.getCentroidAttrs(group_id)["marker"]
+
             )
 
             # plot sinks (x, y, attributes)
@@ -205,7 +296,8 @@ class SymmetricClockTree:
                 plt.plot(
                     sink.location[0],
                     sink.location[1],
-                    sink_attrs[group_id]
+                    color=plotAttrs.getSinkAttrs(group_id)["color"],
+                    marker=plotAttrs.getSinkAttrs(group_id)["marker"]
                 )
 
                 self.drawConnection(sink.location, centroid_location, group_id)
@@ -325,13 +417,13 @@ class SymmetricClockTree:
 
     # Helper method to draw a line between two points
     def drawLineBetweenTwoPoints(self, start, goal, group):
-        plotAttrs = PlotAttrs()
-        line_colors = plotAttrs.line_colors
+        plotAttrs = PlotAttrs(self.num_sinks)
+        line_attrs = plotAttrs.line_attrs
 
         plt.plot(
             [start[0], goal[0]],
             [start[1], goal[1]],
-            color=line_colors[group]
+            color=plotAttrs.getLineAttrs(group)["color"]
         )
 
     # Helper method which calculates current location relative to centroid
