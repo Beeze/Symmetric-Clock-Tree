@@ -50,16 +50,17 @@ class SymmetricClockTree:
         self.centroids = []
         self.sinkGroups = {}
         self.minXCoordinate = 0
-        self.maxXCoordinate = 2500
+        self.maxXCoordinate = 5000
         self.minYCoordinate = 0
-        self.maxYCoordinate = 2500
+        self.maxYCoordinate = 5000
         self.standardizedWireLength = 0
+        self.directionTraveled = { "up": False, "down": False, "left": False, "right": False }
 
     # Helper method for generating random sink locations.
     def generateRandomSinkLocations(self):
-        radius = 200
-        rangeX = (self.minXCoordinate, self.maxXCoordinate)
-        rangeY = (self.minYCoordinate, self.maxYCoordinate)
+        radius = 500
+        rangeX = (self.maxXCoordinate/4, (3*self.maxXCoordinate/4))
+        rangeY = (self.maxYCoordinate/4, (3*self.maxYCoordinate/4))
         qty = self.num_sinks  # or however many points you want
 
         # Generate a set of all points within 200 of the origin, to be used as offsets later
@@ -67,7 +68,7 @@ class SymmetricClockTree:
         deltas = set()
         for x in range(-radius, radius+1):
             for y in range(-radius, radius+1):
-                if x*x + y*y <= radius*radius:
+                if x*x + y*y <= radius*radius and x*x <= self.maxXCoordinate and y*y <= self.maxYCoordinate:
                     deltas.add((x,y))
 
         excluded = set()
@@ -137,9 +138,7 @@ class SymmetricClockTree:
 
         # calculate wire length between sink and centroid
         # sqrt((x2 - x1)^2 + (y2 - y1)^2)
-        wire_length = math.sqrt(
-            ((centroid_location[0] - sink.location[0]) ** 2) +
-            (centroid_location[1] - sink.location[1]) ** 2)
+        wire_length = self.DistanceToGoal(sink.location, centroid_location)
 
         # set max distance if applicable
         if (wire_length > self.standardizedWireLength):
@@ -162,7 +161,11 @@ class SymmetricClockTree:
     # Sets the axes for our plot.
     def setAxis(self):
         # ([minX, maxX, minY, maxY])
-        plt.axis([self.minXCoordinate, self.maxXCoordinate, self.minYCoordinate, self.maxYCoordinate])
+        plt.axis([self.minXCoordinate, 3*self.maxXCoordinate/2, self.minYCoordinate, 3*self.maxYCoordinate/2])
+
+    # Shows our plot
+    def showPlot(self):
+        plt.show()
 
     # Plots each of our sink groups
     def plotSinkGroups(self):
@@ -190,53 +193,162 @@ class SymmetricClockTree:
                     sink_attrs[group_id]
                 )
 
-                self.drawConnection(centroid_location, sink.location, group_id)
+                self.drawConnection(sink.location, centroid_location, group_id)
 
     # draws the line that connects a sink to a centroid
     # takes into account the required (longest) wire length when
     # devising a path
     # wip
-    def drawConnection(self, centroid_location, sink_location, group_id):
+    def drawConnection(self, start, goal, group_id):
 
         # next, we're going to snake the wire from the sink to the centroid,
-        # we decide which horizontal and vertical direction to go
-        # based on whichever side we have more clearance on.
-        # sink_relative_centroid_direction = getSinkRelativeCentroidDirection(centroid_location, sink_location)
-        # wire_length = self.standardizedWireLength
-        # pen_location = sink.location
-        # connect sink to their centroid. ([x_start, x_end], [y_start, y_end], attributes)
 
+        desired_distance = self.standardizedWireLength
+        exact_distance = self.DistanceToGoal(start, goal)
+
+        # Too close
+        if exact_distance != desired_distance:
+            self.drawSnakeLine(start, goal, desired_distance, group_id)
+        else:
+            # Equidistant, so draw direct connection
+            self.drawLineBetweenTwoPoints(start, goal, group_id)
+
+    def drawSnakeLine(self, start, goal, goal_wire_length, group):
+
+        bounding_thresholds = {
+            "up": self.maxXCoordinate,
+            "down": self.minXCoordinate,
+            "left": self.minYCoordinate,
+            "right": self.maxYCoordinate
+        }
+
+        pen = start[:]
+        last_pen_position = pen[:]
+
+        direction_traveled = { "up": False, "down": False, "left": False, "right": False }
+
+        turning = False
+        go = True
+        firstLine = True
+        finalLine = False
+
+        current_wire_length = 0
+
+        while go:
+            # get relative direction
+            direction = self.getSinkRelativeCentroidDirection(start, goal, turning)
+            recalculated_direction = direction
+
+            direction_to_travel = self.getNextDirectionToTravel(start, goal, turning)
+
+            movingInPositiveDirection = False if (direction_to_travel == "left" or direction_to_travel == "down") else True
+            movingHorizontally = False if (direction_to_travel == "up" or direction_to_travel == "down") else True
+
+            index = 0 if movingHorizontally else 1
+            change = 5 if movingInPositiveDirection else -5
+
+            overshoot_counter = 0
+
+            # calculate the length of the wire
+            while overshoot_counter < 5:
+                # ensure we won't hit the graph bounds
+                if movingInPositiveDirection and pen[index] + change > bounding_thresholds[direction_to_travel]:
+                    self.directionTraveled[direction] = True
+                    break
+                elif not movingInPositiveDirection and pen[index] + change < bounding_thresholds[direction_to_travel]:
+                    self.directionTraveled[direction] = True
+                    break
+                # check to see if we've passed the goal on this axis.
+                elif recalculated_direction != direction:
+                    overshoot_counter += 1
+                pen[index] += change
+                current_wire_length += abs(change)
+
+                if current_wire_length >= goal_wire_length:
+                    finalLine = True
+                    break
+
+                recalculated_direction = self.getSinkRelativeCentroidDirection(pen, goal, turning)
+
+            if firstLine:
+                print "start to pen"
+                self.drawLineBetweenTwoPoints(start, pen, group)
+                last_pen_position = pen[:]
+                firstLine = False
+            elif finalLine:
+                print "final line pen"
+                self.drawLineBetweenTwoPoints(pen, goal, group)
+                go = False
+            else:
+                print direction
+                print self.directionTraveled
+                print "pen to pen"
+                self.drawLineBetweenTwoPoints(last_pen_position, pen, group)
+                last_pen_position = pen[:]
+
+            # toggle our turning variable
+            turning = not turning
+            self.resetDirectionTravel()
+
+
+    def drawLineBetweenTwoPoints(self, start, goal, group):
         plotAttrs = PlotAttrs()
         line_colors = plotAttrs.line_colors
 
         plt.plot(
-            [sink_location[0], centroid_location[0]],
-            [sink_location[1], centroid_location[1]],
-            color=line_colors[group_id]
-        ) 
-        # drawSnakeLine(pen_location, wire_length, sink_relative_centroid_direction)
+            [start[0], goal[0]],
+            [start[1], goal[1]],
+            color=line_colors[group]
+        )
+
+    def getSinkRelativeCentroidDirection(self, start, goal, turning=False):
+        if turning:
+            return "left" if start[0] > goal[0] else "right"
+        else:
+            return "down" if start[1] > goal[1] else "up"
+
+    def getNextDirectionToTravel(self, start, goal, turning=False):
+        if turning:
+            possible_dir = "right" if start[0] > goal[0] else "left"
+            if self.directionTraveled[possible_dir] == False:
+                print "here"
+                return possible_dir
+            else:
+                new_dir = "left" if possible_dir == "right" else "right"
+
+                if self.directionTraveled[new_dir] == False:
+                    return new_dir
+                else:
+                    self.resetDirectionTravel()
+                    return getNextDirectionToTravel(start, goal, False)
+
+        else:
+            possible_dir =  "up" if start[1] > goal[1] else "down"
+
+            if self.directionTraveled[possible_dir] == False:
+                return possible_dir
+            else:
+                new_dir = "up" if possible_dir == "down" else "down"
+
+                if self.directionTraveled[new_dir] == False:
+                    return new_dir
+                else:
+                    self.resetDirectionTravel()
+                    return getNextDirectionToTravel(start, goal, True)
+
+    def DistanceToGoal(self, start, goal):
+        return math.sqrt(
+            ((goal[0] - start[0]) ** 2) +
+            ((goal[1] - start[1]) ** 2)
+        )
+    def resetDirectionTravel(self):
+        print "reset"
+
+    def getDirectionTraveled(self):
+        return self.directionTraveled
 
 
-    def getSinkRelativeCentroidDirection(self, c_l, s_l):
-        pass
-        # if c_l[0] > s_l[0] and c_l[1] > s_l[1]
-        #     return 'NE'
-        # elif c_l[0] > s_l[0] and c_l[1] < s_l[1]
-        #     return 'NW'
-        # elif c_l[0] < s_l[0] and c_l[1] > s_l[1]
-        #     return 'SE'
-        # else
-        #     return 'SW'
-
-    def drawSnakeLine(self, starting_location, distance_to_travel, direction):
-        pass
-
-    # Shows our plot
-    def showPlot(self):
-        plt.show()
-
-
-tree = SymmetricClockTree(49)
+tree = SymmetricClockTree(50)
 tree.generateRandomSinkLocations()
 tree.groupSinks()
 tree.makePlot()
