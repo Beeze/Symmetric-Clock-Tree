@@ -5,7 +5,6 @@ import numpy as np
 import matplotlib
 from matplotlib import pyplot as plt
 import math
-from itertools import chain
 import statistics
 
 # Used to represent the Sinks on our board
@@ -105,6 +104,10 @@ class SymmetricClockTree:
         self.maxYCoordinate = 5000
         self.standardizedWireLength = 0
         self.directionTraveled = { "up": False, "down": False, "left": False, "right": False }
+        self.cluster_size = -1
+
+    def setClusterSize(self, n):
+        self.cluster_size = n
 
     # Helper method to calculate the distance between two points.
     def DistanceToGoal(self, start, goal):
@@ -123,26 +126,39 @@ class SymmetricClockTree:
 
     # method that allows you to input a list of sink locations.
     # expects list[[x, y]]
-    def addSinksByLocation(self, sink_locations):
-        self.minXCoordinate = 0
-        self.maxXCoordinate = 0
-        self.minYCoordinate = 0
-        self.maxYCoordinate = 0
+    def addSinksByLocation(self):
+        f = open("s1r1.txt", "r")
+        bounds = f.readline().split(" ")
 
-        for location in sink_locations:
+        self.minXCoordinate = int(bounds[0])
+        self.minYCoordinate = int(bounds[1])
+        self.maxXCoordinate = int(bounds[2])
+        self.maxYCoordinate = int(bounds[3])
+
+        #skip second Line
+        f.readline()
+
+        self.num_sinks = int(f.readline().split(" ")[2])
+
+        for sink in range(self.num_sinks):
+            data = f.readline().split(" ")
+            location = [int(data[1]), int(data[2])]
+
             self.sinks.append(Sink(location[0], location[1]))
 
             # update horizontal plot constraints
-            if location[0] < minXCoordinate:
-                minXCoordinate = location[0]
-            elif location[0] > maxXCoordinate:
-                maxXCoordinate = location[0]
+            if location[0] < self.minXCoordinate:
+                self.minXCoordinate = location[0]
+            elif location[0] > self.maxXCoordinate:
+                self.maxXCoordinate = location[0]
 
             # update vertical plot constraints
-            if location[1] < minYCoordinate:
-                minYCoordinate = location[1]
-            elif location[1] > maxYCoordinate:
-                maxYCoordinate = location[1]
+            if location[1] < self.minYCoordinate:
+                self.minYCoordinate = location[1]
+            elif location[1] > self.maxYCoordinate:
+                self.maxYCoordinate = location[1]
+
+        f.close()
 
     # Helper method for generating random sink locations.
     def generateRandomSinkLocations(self):
@@ -215,11 +231,11 @@ class SymmetricClockTree:
 
         # Get cluster size that's closest to the median of all the silhouette average.
         averages = list(scores.values())
-        # median = statistics.median(averages)
-        # closest_value_to_median = max(averages, key=lambda x:abs(x-median))
-        max_val = max(averages)
+        median = statistics.median(averages)
+        closest_value_to_median = min(averages, key=lambda x:abs(x-median))
+
         for size, avg in scores.items():
-            if avg == max_val:
+            if avg == closest_value_to_median:
                 print "number of sinks:", self.num_sinks
                 print "optimal cluster size:", size
                 return size
@@ -339,9 +355,9 @@ class SymmetricClockTree:
 
         bounding_thresholds = {
             "down": self.minXCoordinate,
-            "up": 3*self.maxYCoordinate/2,
+            "up": 3*self.maxYCoordinate,
             "left": self.minXCoordinate,
-            "right": 3*self.maxXCoordinate/2
+            "right": 3*self.maxXCoordinate
         }
 
         pen = start[:]
@@ -485,12 +501,16 @@ class SymmetricClockTree:
 
 
 # Initialize a symmetric clock tree, with n sinks.
-tree = SymmetricClockTree(50)
+tree = SymmetricClockTree(40)
 
 # Uncomment the line below to input custom data
 # Method expects locations to be a list of x, y coordinates: [[x,y], [x,y],...]
-# tree.addSinksByLocation(location)
+# tree.addSinksByLocation()
 
 tree.generateRandomSinkLocations() # Comment out if passing custom data.
+
 tree.groupSinks()
 tree.makePlot()
+
+# Add ability to set the number of clusters manually.
+# Data is nm
